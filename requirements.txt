@@ -1,0 +1,3 @@
+# LIMRA Search Agent 의존성
+playwright>=1.40.0
+flask>=2.3.0
