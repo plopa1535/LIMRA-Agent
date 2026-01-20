@@ -51,6 +51,9 @@ class LimraSearchAgent:
         # 검색 결과 저장
         self.search_results = []
 
+        # 세션 쿠키 파일 경로
+        self.cookies_path = self.download_folder / "session_cookies.json"
+
     async def initialize(self):
         """브라우저 초기화"""
         print("[*] 브라우저 초기화 중...")
@@ -100,11 +103,77 @@ class LimraSearchAgent:
             });
         """)
 
+        # 저장된 쿠키 로드 시도
+        await self._load_cookies()
+
         print("[OK] 브라우저 초기화 완료")
 
+    async def _load_cookies(self) -> bool:
+        """저장된 세션 쿠키 로드"""
+        try:
+            if self.cookies_path.exists():
+                with open(self.cookies_path, 'r', encoding='utf-8') as f:
+                    cookies = json.load(f)
+
+                if cookies:
+                    await self.context.add_cookies(cookies)
+                    print(f"[COOKIE] 저장된 쿠키 로드됨 ({len(cookies)}개)")
+                    return True
+        except Exception as e:
+            print(f"[WARN] 쿠키 로드 실패: {e}")
+
+        return False
+
+    async def _save_cookies(self):
+        """현재 세션 쿠키 저장"""
+        try:
+            cookies = await self.context.cookies()
+            with open(self.cookies_path, 'w', encoding='utf-8') as f:
+                json.dump(cookies, f, ensure_ascii=False, indent=2)
+            print(f"[COOKIE] 세션 쿠키 저장됨: {self.cookies_path}")
+        except Exception as e:
+            print(f"[WARN] 쿠키 저장 실패: {e}")
+
+    async def _check_login_status(self) -> bool:
+        """현재 로그인 상태 확인"""
+        try:
+            await self.page.goto(self.BASE_URL, wait_until='networkidle', timeout=30000)
+            await asyncio.sleep(2)
+
+            page_content = await self.page.content()
+            current_url = self.page.url
+
+            # 로그인 상태 지표 확인
+            login_indicators = [
+                'logout' in page_content.lower(),
+                'sign out' in page_content.lower(),
+                'my account' in page_content.lower(),
+                'my limra' in page_content.lower(),
+                'welcome' in page_content.lower(),
+            ]
+
+            if any(login_indicators):
+                return True
+
+            return False
+
+        except Exception as e:
+            print(f"[WARN] 로그인 상태 확인 실패: {e}")
+            return False
+
     async def login(self) -> bool:
-        """LIMRA 웹사이트 로그인 (2단계 로그인 지원)"""
+        """LIMRA 웹사이트 로그인 (2단계 로그인 지원, 쿠키 자동 로그인)"""
         print(f"[*] 로그인 시도 중... ({self.email})")
+
+        # 1. 저장된 쿠키로 로그인 상태 확인
+        if self.cookies_path.exists():
+            print("[*] 저장된 세션으로 자동 로그인 시도...")
+            if await self._check_login_status():
+                self.is_logged_in = True
+                print("[OK] 쿠키로 자동 로그인 성공!")
+                return True
+            else:
+                print("[WARN] 저장된 세션이 만료됨. 수동 로그인 필요.")
 
         try:
             # 로그인 페이지로 이동
@@ -327,11 +396,7 @@ class LimraSearchAgent:
                 print("[OK] 로그인 성공!")
 
                 # 쿠키 저장 (세션 유지용)
-                cookies = await self.context.cookies()
-                cookies_path = self.download_folder / "session_cookies.json"
-                with open(cookies_path, 'w') as f:
-                    json.dump(cookies, f)
-                print(f"[COOKIE] 세션 쿠키 저장됨: {cookies_path}")
+                await self._save_cookies()
 
                 return True
             else:
@@ -352,12 +417,14 @@ class LimraSearchAgent:
                 ]):
                     self.is_logged_in = True
                     print("[OK] 로그인 성공!")
+                    await self._save_cookies()
                     return True
 
                 # 추가 확인: 로그인 페이지가 아니면 로그인 성공으로 간주
                 if 'www.limra.com' in current_url and 'login' not in current_url.lower():
                     self.is_logged_in = True
                     print("[OK] 로그인 성공! (메인 페이지 확인)")
+                    await self._save_cookies()
                     return True
 
                 print("[ERROR] 로그인 실패 - 자격 증명을 확인해주세요")
@@ -382,6 +449,7 @@ class LimraSearchAgent:
                 ]):
                     self.is_logged_in = True
                     print("[OK] 로그인 성공!")
+                    await self._save_cookies()
                     return True
             except:
                 pass
