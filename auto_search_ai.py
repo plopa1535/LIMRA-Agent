@@ -143,25 +143,16 @@ async def ai_search_and_analyze(
 
         print("[OK] 로그인 성공!")
 
-        # 각 키워드로 검색
+        # 각 키워드로 검색 (키워드 검색 기본)
         for kw in search_keywords:
-            print(f"\n[SEARCH] '{kw}' 검색 중...")
+            print(f"\n[SEARCH] '{kw}' 키워드 검색 중...")
 
-            # Research 섹션 탐색
-            docs = await agent.browse_research_with_filter(
-                keywords=[kw],
-                auto_download=False
-            )
+            # 키워드 검색 (기본)
+            search_docs = await agent.search_documents(kw, max_results=15)
 
-            if docs:
-                all_documents.extend(docs)
-                print(f"  [+] {len(docs)}개 문서 발견")
-            else:
-                # 키워드 검색
-                search_docs = await agent.search_documents(kw, max_results=10)
-                if search_docs:
-                    all_documents.extend(search_docs)
-                    print(f"  [+] 검색으로 {len(search_docs)}개 문서 발견")
+            if search_docs:
+                all_documents.extend(search_docs)
+                print(f"  [+] {len(search_docs)}개 문서 발견")
 
         # 중복 제거
         seen_titles = set()

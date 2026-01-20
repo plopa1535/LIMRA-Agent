@@ -71,26 +71,22 @@ async def auto_search_and_download():
 
         print("[OK] 로그인 성공!")
 
-        # 3. Research 섹션에서 검색
-        print(f"\n[3/5] Research 섹션에서 '{KEYWORD}' 검색 중...")
-        filtered_docs = await agent.browse_research_with_filter(
-            keywords=[KEYWORD],
-            start_year=None,
-            end_year=None,
-            auto_download=False
-        )
+        # 3. 키워드 검색 (기본)
+        print(f"\n[3/5] '{KEYWORD}' 키워드 검색 중...")
+        filtered_docs = await agent.search_documents(KEYWORD, max_results=20)
 
         if not filtered_docs:
-            print(f"[WARN] '{KEYWORD}' 관련 문서를 찾지 못했습니다.")
+            print(f"[WARN] 키워드 검색 결과가 없습니다. Research 섹션 탐색 중...")
 
-            # 키워드 검색 시도
-            print(f"\n   키워드 검색 시도 중...")
-            results = await agent.search_documents(KEYWORD, max_results=20)
+            # Research 섹션 탐색 (보조)
+            filtered_docs = await agent.browse_research_with_filter(
+                keywords=[KEYWORD],
+                start_year=None,
+                end_year=None,
+                auto_download=False
+            )
 
-            if results:
-                filtered_docs = results
-                print(f"[OK] 키워드 검색으로 {len(results)}개 문서 발견")
-            else:
+            if not filtered_docs:
                 print("[ERROR] 검색 결과가 없습니다.")
                 return False
 
